@@ -1,0 +1,296 @@
+//not checking if I am not overflwoing the dictionary's array, out of boundaries
+//Test 4: sum<MAXDICTWORDS
+//	if (k == numMatches - 1&&k<MAXDICTWORDS) {
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <cassert>
+#include <algorithm>
+using namespace std;
+//const int MAXRESULTS = 20;    // Max matches that can be found
+const int MAXDICTWORDS = 10; // Max words that can be read in
+const int MAXRESULTS = 10;
+int CheckSize(istream &dictfile, string dict[]);
+int permuteRecur(string word, const string dict[], int nwords, string results[]);
+int loadDictionary(istream &dictfile, string dict[]);
+void printRecur(const string results[], int numMatches);
+int store(string prefix, string rest, string results[], int&, const string dict[]);
+int loop(int i, int max, string prefix, string rest, string results[], int&, const string dict[]);
+bool inDict(string &rest, const string dict[]);
+bool loop2(int i, string &rest, const string dict[]);
+void loopPrint(int, int numMatches, const string results[]);
+int deleteDuplicates(string results[], int & numMatches);
+void deleteDuplicates1(string results[], int & numMatches, int i);
+void deleteDuplicates2(string results[], int & numMatches, int i, int j);
+void deleteDuplicates3(string results[], int & numMatches, int k, int j);
+
+void testone(int n)
+{
+	string dictionary[MAXDICTWORDS];
+	string results[MAXRESULTS];
+
+	switch (n)
+	{
+	default: {
+		cout << "Bad argument" << endl;
+	} break; case  1: {
+		istringstream iss("dog\ncat\nrat\neel\ntar\nart\nlee\nact\ngod");
+		int numResults = loadDictionary(iss, dictionary);
+		sort(dictionary, dictionary + numResults);
+		assert(numResults == 9 && dictionary[0] == "act" && dictionary[1] == "art");
+	} break; case  2: {
+		// File is empty, Checks that file is empty and loadDictionary returns 0.
+		istringstream iss("");
+		int numResults = loadDictionary(iss, dictionary);
+		assert(numResults == 0 && dictionary[0] == "");
+	} break; case  3: {
+		// Dictionary has been read properly
+		istringstream iss("dog\ncat\nrat\neel\ntar\nart\nlee\nact\ngod");
+		int numResults = loadDictionary(iss, dictionary);
+		sort(dictionary, dictionary + numResults);
+		assert(numResults == 9 && dictionary[0] == "act" && dictionary[numResults - 1] == "tar");
+	} break; case  4: {
+		// Input file is larger than the dictionary size
+		istringstream iss("dog\ncat\nrat\neel\ntar\nart\nlee\nact\ngod\ntoo\nmany\nwords");
+		int numResults = loadDictionary(iss, dictionary);
+		sort(dictionary, dictionary + numResults);
+		assert(numResults == 10 && dictionary[MAXDICTWORDS - 1] == "too");
+	} break; case  5: {
+		// If a certain word with repeated letter is shown in results more than once - still accept.
+		string dictionary[] = { "one", "oone", "ne", "e", "too" };
+		int numResults = permuteRecur("oto", dictionary, 5, results);
+		assert((numResults == 1 || numResults == 2) && results[0] == "too");
+	} break; case  6: {
+		// Doesn't check numResults nor duplicates.
+		string dictionary[] = { "one", "oone", "ne", "e", "too" };
+		permuteRecur("oto", dictionary, 5, results);
+		assert(results[0] == "too");
+	} break; case  7: {
+		// If word wasn't found, numResults = 0 and results array is empty.
+		string dictionary[] = { "one", "oone", "ne", "e" };
+		int numResults = permuteRecur("look", dictionary, 4, results);
+		assert(numResults == 0 && results[0] == "" && results[1] == "");
+	} break; case  8: {
+		// No fraction of a permutation is being searched in dictionary
+		string dictionary[] = { "one", "oone", "non", "oon" };
+		int numResults = permuteRecur("on", dictionary, 4, results);
+		assert(numResults == 0 && results[0] == "" && results[1] == "");
+	} break; case  9: {
+		// No fraction of a permutation is being searched in dictionary
+		string dictionary[] = { "one", "oone", "ne", "e", "neoo", "oneo" };
+		int numResults = permuteRecur("neo", dictionary, 6, results);
+		assert(numResults == 1 && results[0] == "one" && results[1] == "");
+	} break; case  10: {
+		// Checking that no error occurs if more than MAXRESULTS are found.
+		string dictionary[] = { "true",  "treu", "teru", "teur", "ture",
+			"tuer", "rtue", "rteu", "retu","reut", "ruet", "rute", "utre",
+			"uter", "uetr", "uert", "urte", "uret", "etru", "etur", "ertu",
+			"erut", "eurt", "eutr" };
+		// All 24 permutations
+		int numResults = permuteRecur("true", dictionary, 24, results);
+		assert(numResults == MAXRESULTS);
+	} break; case  11: {
+		// Checking one word was found, no duplicates.
+		string dictionary[] = { "ppp" };
+		int numResults = permuteRecur("ppp", dictionary, 1, results);
+		cout << ">" << results[1] << "<" << endl;
+		assert(numResults == 1 && results[0] == "ppp"); //&&results[1]==""
+	} break; case  12: {
+		string dictionary[] = { "run", "dodge", "break", "urn", "defeat" };
+		int numResults = permuteRecur("nru", dictionary, 5, results);
+		sort(results, results + numResults);
+		assert(numResults == 2 && results[0] == "run" && results[1] == "urn");
+	} break; case  13: {
+		streambuf* oldCoutStreamBuf = cout.rdbuf();
+		ostringstream strCout;
+		cout.rdbuf(strCout.rdbuf());
+		string results[] = { "cat", "act" };
+		printRecur(results, 2);
+		cout.rdbuf(oldCoutStreamBuf);
+		string temp = strCout.str();
+		bool match1 = temp.find("act") != string::npos;
+		bool match2 = temp.find("cat") != string::npos;
+		assert(match1 && match2);
+	} break; case  14: {
+		istringstream iss("tier\nrite\nbate\ntire\nttir");
+		int numWords = loadDictionary(iss, dictionary);
+		sort(dictionary, dictionary + numWords);
+		assert(numWords == 5 && dictionary[0] == "bate");
+		int numResults = permuteRecur("tier", dictionary, numWords, results);
+		assert(numResults == 3 && (results[2] == "tire" || results[2] == "tier" || results[2] == "rite"));
+	} break; case  15: {
+		string example[] = { "kool", "moe", "dee" };
+		int numResults = permuteRecur("look", example, 3, results);
+		assert(numResults == 1 && results[0] == "kool");
+	} break;
+	}
+}
+
+int main()
+{
+	//4, 11, 
+	for (int i = 1; i <= 15; i++)
+	{
+		cout << "Enter test number: ";
+		int n;
+		cin >> n;
+		testone(n);
+		cout << "Passed" << endl;
+	}
+}
+
+int permuteRecur(string word, const string dict[], int nwords, string results[])
+{
+	string d = "";
+	int sum = 0;
+	int size = store(d, word, results, sum, dict);
+	//cout << "check " << size << endl;
+	return size;
+}
+int store(string prefix, string rest, string results[], int& sum, const string dict[])
+{
+	if (rest == "")
+	{
+		if (inDict(prefix, dict) && sum < MAXDICTWORDS)
+		{
+			results[sum] = prefix;
+			sum++;
+		}
+	}
+	else
+	{
+
+		loop(0, rest.size(), prefix, rest, results, sum, dict);
+	}
+	sum = deleteDuplicates(results, sum);
+	return sum;
+}
+
+int loop(int i, int max, string prefix, string rest, string results[], int &sum, const string dict[])
+{
+	if (i >= max)
+		return sum;
+	else
+	{
+		char chr = rest[i];
+		string before = rest.substr(0, i);
+		string after = rest.substr(i + 1);
+		store(prefix + chr, before + after, results, sum, dict);
+	}
+	return loop(i + 1, max, prefix, rest, results, sum, dict);
+}
+
+int loadDictionary(istream &dictfile, string dict[])
+{
+	int a = CheckSize(dictfile, dict);
+	if (a <= MAXDICTWORDS)
+		return a;
+	else
+		return MAXDICTWORDS;
+}
+int CheckSize(istream &dictfile, string dict[])
+{
+	if (dictfile.peek() == EOF) //!dictfile()
+		return 0;
+	getline(dictfile, *dict);
+	return CheckSize(dictfile, dict + 1) + 1;
+}
+
+void printRecur(const string results[], int numMatches)
+{
+	loopPrint(0, numMatches, results);
+}
+
+bool inDict(string &rest, const string dict[])
+{
+	bool a = loop2(0, rest, dict);
+	if (a)
+		return true;
+	return false;
+}
+
+bool loop2(int i, string &rest, const string dict[])
+{
+	if (i == MAXDICTWORDS)
+		return false;
+	if (dict[i] == rest)
+		return true;
+	return loop2(i + 1, rest, dict);
+}
+
+
+void loopPrint(int i, int numMatches, const string results[])
+{
+	if (i == numMatches)
+		return;
+	cout << results[i] << endl;
+	loopPrint(i + 1, numMatches, results);
+}
+
+/*
+int deleteDuplicates(string results[], int & numMaגtches)
+{
+	for (int i = 0; i < numMatches; i++)
+	{
+		for (int j = 0; j < numMatches; j++)
+		{
+			if (results[i] == results[j]&&i!=j)
+			{
+				for (int k = j; k < numMatches - 1; k++)
+				{
+					results[k] = results[k + 1];
+				}
+				numMatches--;
+			}
+		}
+	}
+	return numMatches;
+}
+*/
+
+int deleteDuplicates(string results[], int & numMatches)
+{
+	deleteDuplicates1(results, numMatches, 0);
+	if (numMatches <= MAXDICTWORDS)
+		return numMatches;
+	else
+		return MAXDICTWORDS;
+}
+
+void deleteDuplicates1(string results[], int & numMatches, int i)
+{
+	if (i == numMatches) {
+		return;
+	}
+	else {
+		deleteDuplicates2(results, numMatches, i, 0);
+		deleteDuplicates1(results, numMatches, ++i);
+	}
+}
+
+void deleteDuplicates2(string results[], int & numMatches, int i, int j)
+{
+	if (j >= numMatches) {
+		return;
+	}
+	else {
+		if (results[i] == results[j] && i != j) {
+			deleteDuplicates3(results, numMatches, j, j);
+			numMatches--;
+		}
+		return deleteDuplicates2(results, numMatches, i, ++j);
+	}
+}
+
+void deleteDuplicates3(string results[], int & numMatches, int k, int j)
+{
+	if (k == numMatches - 1) {
+		return;
+	}
+	else {
+		results[k] = results[k + 1];
+		return deleteDuplicates3(results, numMatches, ++k, j);
+	}
+}
